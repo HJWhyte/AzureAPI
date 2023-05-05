@@ -30,47 +30,6 @@ RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp
 # Set model information when doing transcription with custom models
 MODEL_REFERENCE = None  # guid of a custom model
 
-
-def transcribe_from_single_blob(uri, properties):
-    """
-    Transcribe a single audio file located at `uri` using the settings specified in `properties`
-    using the base model for the specified locale.
-    """
-    transcription_definition = swagger_client.Transcription(
-        display_name=NAME,
-        description=DESCRIPTION,
-        locale=LOCALE,
-        content_urls=[uri],
-        properties=properties
-    )
-
-    return transcription_definition
-
-
-def transcribe_with_custom_model(client, uri, properties):
-    """
-    Transcribe a single audio file located at `uri` using the settings specified in `properties`
-    using the base model for the specified locale.
-    """
-    # Model information (ADAPTED_ACOUSTIC_ID and ADAPTED_LANGUAGE_ID) must be set above.
-    if MODEL_REFERENCE is None:
-        logging.error("Custom model ids must be set when using custom models")
-        sys.exit()
-
-    model = {'self': f'{client.configuration.host}/models/{MODEL_REFERENCE}'}
-
-    transcription_definition = swagger_client.Transcription(
-        display_name=NAME,
-        description=DESCRIPTION,
-        locale=LOCALE,
-        content_urls=[uri],
-        model=model,
-        properties=properties
-    )
-
-    return transcription_definition
-
-
 def transcribe_from_container(uri, properties):
     """
     Transcribe all files in the container located at `uri` using the settings specified in `properties`
@@ -104,26 +63,6 @@ def _paginate(api, paginated_object):
             yield from paginated_object.values
         else:
             raise Exception(f"could not receive paginated data: status {status}")
-
-
-def delete_all_transcriptions(api):
-    """
-    Delete all transcriptions associated with your speech resource.
-    """
-    logging.info("Deleting all existing completed transcriptions.")
-
-    # get all transcriptions for the subscription
-    transcriptions = list(_paginate(api, api.get_transcriptions()))
-
-    # Delete all pre-existing completed transcriptions.
-    # If transcriptions are still running or not started, they will not be deleted.
-    for transcription in transcriptions:
-        transcription_id = transcription._self.split('/')[-1]
-        logging.debug(f"Deleting transcription with id {transcription_id}")
-        try:
-            api.delete_transcription(transcription_id)
-        except swagger_client.rest.ApiException as exc:
-            logging.error(f"Could not delete transcription {transcription_id}: {exc}")
 
 
 def transcribe():
@@ -206,9 +145,13 @@ def transcribe():
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
                 logging.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
+                f = open("transcription.txt", "a")
+                f.write(results.content.decode('utf-8'))
+                f.close
         elif transcription.status == "Failed":
             logging.info(f"Transcription failed: {transcription.properties.error.message}")
 
 
 if __name__ == "__main__":
     transcribe()
+
