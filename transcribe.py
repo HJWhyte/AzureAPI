@@ -133,12 +133,15 @@ def transcribe():
     configuration = swagger_client.Configuration()
     configuration.api_key["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
     configuration.host = f"https://{SERVICE_REGION}.api.cognitive.microsoft.com/speechtotext/v3.1"
+    logging.info(f"API Key Configuration")
 
     # create the client object and authenticate
     client = swagger_client.ApiClient(configuration)
+    logging.info(f"Client Object Creation and Authentication")
 
     # create an instance of the transcription api class
     api = swagger_client.CustomSpeechTranscriptionsApi(api_client=client)
+    logging.info(f"Transcription API Class instance")
 
     # Specify transcription properties by passing a dict to the properties parameter. See
     # https://learn.microsoft.com/azure/cognitive-services/speech-service/batch-transcription-create?pivots=rest-api#request-configuration-options
@@ -167,11 +170,13 @@ def transcribe():
     # uncomment the following block to enable and configure language identification prior to transcription
     # Uncomment this block to transcribe all files from a container.
     transcription_definition = transcribe_from_container(RECORDINGS_CONTAINER_URI, properties)
+    logging.info(f"Transcribe from container method run")
 
     created_transcription, status, headers = api.transcriptions_create_with_http_info(transcription=transcription_definition)
 
     # get the transcription Id from the location URI
     transcription_id = headers["location"].split("/")[-1]
+    logging.info(f"Transaction ID from Location URI")
 
     # Log information about the created transcription. If you should ask for support, please
     # include this information.
