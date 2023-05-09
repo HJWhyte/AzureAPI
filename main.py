@@ -1,6 +1,7 @@
 import os  # for the environment variables
 import uuid  # for unique id generation
 import re  # For use with regular expressions
+import uvicorn
 import requests
 from fastapi import FastAPI, HTTPException  # pylint: disable=import-error
 from subprocess import run
@@ -27,14 +28,18 @@ CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=tiamataudioin;Ac
 CONTAINER_NAME = 'audio'
 END_POINT = "https://tiamat-cog-services.cognitiveservices.azure.com/"
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # configure API key authorization: subscription_key
 configuration = swagger_client.Configuration()
 configuration.api_key["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
 configuration.host = f"https://{SERVICE_REGION}.api.cognitive.microsoft.com/speechtotext/v3.1"
-logging.info(f"API Key Configuration")
+logger.info(f"API Key Configuration")
 # create the client object and authenticate
 client = swagger_client.ApiClient(configuration)
-logging.info(f"Client Object Creation and Authentication")
+logger.info(f"Client Object Creation and Authentication")
 # create an instance of the transcription api class
 api = swagger_client.CustomSpeechTranscriptionsApi(api_client=client)
 
@@ -81,23 +86,23 @@ def read_root():
 def transcribe():  #sub_key:str, region:str, container_uri:str
     """This will transcribe all audio files from a specified container"""
 
-    logging.info("Starting transcription client...")
+    logger.info("Starting transcription client...")
 
-    logging.info(f"Transcription API Class instance")
+    logger.info(f"Transcription API Class instance")
     properties = swagger_client.TranscriptionProperties()
 
     transcription_definition = transcribe_from_container(RECORDINGS_CONTAINER_URI, properties)
-    logging.info(f"Transcribe from container method run")
+    logger.info(f"Transcribe from container method run")
 
     created_transcription, status, headers = api.transcriptions_create_with_http_info(transcription=transcription_definition)
 
     # get the transcription Id from the location URI
     transcription_id = headers["location"].split("/")[-1]
-    logging.info(f"Transaction ID from Location URI")
+    logger.info(f"Transaction ID from Location URI")
 
     # Log information about the created transcription. If you should ask for support, please
     # include this information.
-    logging.info(f"Created new transcription with id '{transcription_id}' in region {SERVICE_REGION}")
+    logger.info(f"Created new transcription with id '{transcription_id}' in region {SERVICE_REGION}")
 
     return (f"Created new transcription with id '{transcription_id}' in region {SERVICE_REGION}")
 
@@ -106,7 +111,7 @@ def transcription_status(transcription_id: str):
     """Get the transcription job """
 
     transcription = api.transcriptions_get(transcription_id)
-    logging.info(f"Transcriptions status: {transcription.status}")
+    logger.info(f"Transcriptions status: {transcription.status}")
 
     return (f"Transcriptions status: {transcription.status}")
     
@@ -116,7 +121,7 @@ def transcription_error(transcription_id: str):
 
     transcription = api.transcriptions_get(transcription_id)
     status = transcription.properties.error.message
-    logging.info(f"Transcriptions status: {status}")
+    logger.info(f"Transcriptions status: {status}")
 
     return (f"Transcriptions status: {status}")
 
@@ -135,18 +140,18 @@ def transcription_file(transcription_id: str):
                 audiofilename = file_data.name
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
-                logging.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
+                logger.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
                 f = open("transcription.json", "a")
                 f.write(results.content.decode('utf-8'))
                 f.close
 
-                logging.info("Starting upload")
+                logger.info("Starting upload")
 
                 blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
                 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
                 blob_client = container_client.get_blob_client("transcription.json")
 
-                logging.info("Blob client set up")
+                logger.info("Blob client set up")
 
                 with open("transcription.json", "rb") as data:
                     blob_client.upload_blob(data, overwrite = True)
@@ -157,7 +162,7 @@ def transcription_file(transcription_id: str):
         return ("No successful transcript created")
 
 @app.get("/transcription/medical") 
-def transcription_file(transcription_id: str): 
+def transcription_file(transcription_id: str="5ad3bb0a-7e16-406e-bd71-a8cc33f6c21f"): 
     """Creates the transcription test file"""
 
     transcription = api.transcriptions_get(transcription_id)
@@ -171,34 +176,26 @@ def transcription_file(transcription_id: str):
                 audiofilename = file_data.name
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
-                logging.info(
+                logger.info(
                     f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
                 
-                logging.info("Starting upload")
+                logger.info("Starting upload")
 
-                blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
-                container_client = blob_service_client.get_container_client(CONTAINER_NAME)
-                blob_client = container_client.get_blob_client("transcription.json")
+                my_text = requests.get(results_url)
+                results_as_text = json.loads(my_text.text)
+                blob_text =  results_as_text['combinedRecognizedPhrases'][-1]['lexical']
 
-                logging.info("Blob client set up")
-
-                logging.info("Starting Text Analytics for Health")
+                logger.info("Starting Text Analytics for Health")
                 credential = AzureKeyCredential("c86c64f316a2458a96b14908435e744b")
                 text_analytics_client = TextAnalyticsClient(END_POINT, credential)
 
-                blob_client2 = blob_service_client.get_blob_client(CONTAINER_NAME,"transcription.json")
-                
-                with open ("medical.json", "wb") as download_file:
-                    download_stream = blob_client2.download_blob()
-                    download_file.write(download_stream.readall())
+                response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
 
-                return
-
-                # response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
-
-                # entities = response.entities()
-                # for entity in entities:
-                #     return(entity.text, entity.category)
+                return response
 
                 # else:
                 #     return("No successful transcript created")
+
+
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
