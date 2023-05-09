@@ -9,7 +9,8 @@ import sys
 import time
 import swagger_client
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
-
+from azure.ai.textanalytics import TextAnalyticsClient 
+from azure.core.credentials import AzureKeyCredential
 
 app = FastAPI()
 
@@ -19,10 +20,11 @@ NAME = "Simple transcription"
 DESCRIPTION = "Simple transcription description"
 LOCALE = "en-US"
 RECORDINGS_BLOB_URI = "<Your SAS Uri to the recording>"
-RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp=rl&st=2023-05-05T09:43:23Z&se=2023-05-05T17:43:23Z&spr=https&sv=2022-11-02&sr=c&sig=qGKm%2BiuwD%2BVYwvipY9BCVEhSIe1Sb4CbFNJKc2XmChk%3D"
+RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp=rwl&st=2023-05-09T10:20:46Z&se=2023-05-09T18:20:46Z&spr=https&sv=2022-11-02&sr=c&sig=5C46wfSB6cjOEtso4JZlCOt4r7e2xc92K5wM94hWCmc%3D"
 STORAGE_ACCOUNT = "rg-tiamat"
 CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=tiamataudioin;AccountKey=+jm1JoRK1S7xnivK38o890h4Qo/AXIqWUzxDAK4P/6CZ54HbJ4gY+I0XKGzpb8Kr2ck9GuTBeh3L+AStO3LRoQ==;EndpointSuffix=core.windows.net"
 CONTAINER_NAME = 'audio'
+END_POINT = "https://tiamat-cog-services.cognitiveservices.azure.com/"
 
 # configure API key authorization: subscription_key
 configuration = swagger_client.Configuration()
@@ -107,6 +109,16 @@ def transcription_status(transcription_id: str):
 
     return (f"Transcriptions status: {transcription.status}")
     
+@app.get("/testing/error")
+def transcription_error(transcription_id: str):
+    """Get the transcription job """
+
+    transcription = api.transcriptions_get(transcription_id)
+    status = transcription.properties.error.message
+    logging.info(f"Transcriptions status: {status}")
+
+    return (f"Transcriptions status: {status}")
+
 @app.get("/transcription/file")
 def transcription_file(transcription_id: str):
     """Creates the transcription test file"""
@@ -143,3 +155,45 @@ def transcription_file(transcription_id: str):
     else:
         return ("No successful transcript created")
 
+@app.get("/transcription/medical") 
+def transcription_file(transcription_id: str): 
+    """Creates the transcription test file"""
+
+    transcription = api.transcriptions_get(transcription_id)
+
+    if transcription.status == "Succeeded":
+            pag_files = api.transcriptions_list_files(transcription_id)
+            for file_data in _paginate(api, pag_files):
+                if file_data.kind != "Transcription":
+                    continue
+
+                audiofilename = file_data.name
+                results_url = file_data.links.content_url
+                results = requests.get(results_url)
+                logging.info(
+                    f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
+                
+                logging.info("Starting upload")
+
+                blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
+                container_client = blob_service_client.get_container_client(CONTAINER_NAME)
+                blob_client = container_client.get_blob_client("transcription.txt")
+
+                logging.info("Blob client set up")
+
+                logging.info("Starting Text Analytics for Health")
+                credential = AzureKeyCredential("c86c64f316a2458a96b14908435e744b")
+                text_analytics_client = TextAnalyticsClient(END_POINT, credential)
+
+                blob_client2 = blob_service_client.get_blob_client(CONTAINER_NAME,"transcription.txt")
+                downloader = blob_client2.download_blob(max_concurrency=1, encoding='UTF-8')
+                blob_text = downloader.readall()
+
+                response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
+
+                entities = response.entities
+                for entity in entities:
+                    return(entity.text, entity.category)
+
+                else:
+                    return("No successful transcript created")
