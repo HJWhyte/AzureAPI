@@ -5,6 +5,7 @@ import requests
 from fastapi import FastAPI, HTTPException  # pylint: disable=import-error
 from subprocess import run
 import logging
+import json
 import sys
 import time
 import swagger_client
@@ -171,7 +172,7 @@ def transcription_file(transcription_id: str):
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
                 logging.info(
-                    f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
+                    f"Results for {audiofilename}:\n{results.content.decode('utf-8', errors='replace')}")
                 
                 logging.info("Starting upload")
 
@@ -186,12 +187,16 @@ def transcription_file(transcription_id: str):
                 text_analytics_client = TextAnalyticsClient(END_POINT, credential)
 
                 blob_client2 = blob_service_client.get_blob_client(CONTAINER_NAME,"transcription.txt")
-                downloader = blob_client2.download_blob(max_concurrency=1, encoding='UTF-8')
-                blob_text = downloader.readall()
+                downloader = blob_client2.download_blob(max_concurrency=1)
+                blob_text = downloader.readall().decode('utf-8', errors='replace')
+                json_blob_text = json.loads(blob_text)
+                return json_blob_text
+
+
 
                 response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
 
-                entities = response.entities
+                entities = response.entities()
                 for entity in entities:
                     return(entity.text, entity.category)
 
