@@ -136,7 +136,7 @@ def transcription_file(transcription_id: str):
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
                 logging.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
-                f = open("transcription.txt", "a")
+                f = open("transcription.json", "a")
                 f.write(results.content.decode('utf-8'))
                 f.close
 
@@ -144,14 +144,14 @@ def transcription_file(transcription_id: str):
 
                 blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
                 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
-                blob_client = container_client.get_blob_client("transcription.txt")
+                blob_client = container_client.get_blob_client("transcription.json")
 
                 logging.info("Blob client set up")
 
-                with open("transcription.txt", "rb") as data:
+                with open("transcription.json", "rb") as data:
                     blob_client.upload_blob(data, overwrite = True)
                 
-                return(f"File transcription.txt uploaded to Azure Blob Storage")
+                return(f"File transcription.json uploaded to Azure Blob Storage")
 
     else:
         return ("No successful transcript created")
@@ -172,13 +172,13 @@ def transcription_file(transcription_id: str):
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
                 logging.info(
-                    f"Results for {audiofilename}:\n{results.content.decode('utf-8', errors='replace')}")
+                    f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
                 
                 logging.info("Starting upload")
 
                 blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
                 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
-                blob_client = container_client.get_blob_client("transcription.txt")
+                blob_client = container_client.get_blob_client("transcription.json")
 
                 logging.info("Blob client set up")
 
@@ -186,19 +186,19 @@ def transcription_file(transcription_id: str):
                 credential = AzureKeyCredential("c86c64f316a2458a96b14908435e744b")
                 text_analytics_client = TextAnalyticsClient(END_POINT, credential)
 
-                blob_client2 = blob_service_client.get_blob_client(CONTAINER_NAME,"transcription.txt")
-                downloader = blob_client2.download_blob(max_concurrency=1)
-                blob_text = downloader.readall().decode('utf-8', errors='replace')
-                json_blob_text = json.loads(blob_text)
-                return json_blob_text
+                blob_client2 = blob_service_client.get_blob_client(CONTAINER_NAME,"transcription.json")
+                
+                with open ("medical.json", "wb") as download_file:
+                    download_stream = blob_client2.download_blob()
+                    download_file.write(download_stream.readall())
 
+                return
 
+                # response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
 
-                response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
+                # entities = response.entities()
+                # for entity in entities:
+                #     return(entity.text, entity.category)
 
-                entities = response.entities()
-                for entity in entities:
-                    return(entity.text, entity.category)
-
-                else:
-                    return("No successful transcript created")
+                # else:
+                #     return("No successful transcript created")
