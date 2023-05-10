@@ -21,8 +21,8 @@ SERVICE_REGION = "uksouth"
 NAME = "Simple transcription"
 DESCRIPTION = "Simple transcription description"
 LOCALE = "en-US"
-RECORDINGS_BLOB_URI = "<Your SAS Uri to the recording>"
-RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp=rwl&st=2023-05-09T10:20:46Z&se=2023-05-09T18:20:46Z&spr=https&sv=2022-11-02&sr=c&sig=5C46wfSB6cjOEtso4JZlCOt4r7e2xc92K5wM94hWCmc%3D"
+# RECORDINGS_BLOB_URI = "<Your SAS Uri to the recording>"
+RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp=rwl&st=2023-05-10T08:19:57Z&se=2023-05-10T16:19:57Z&spr=https&sv=2022-11-02&sr=c&sig=gCFXtNB15VICccUQNQNmJH4%2BZicF%2FWeEzI1qAr2sk7c%3D"
 STORAGE_ACCOUNT = "rg-tiamat"
 CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=tiamataudioin;AccountKey=+jm1JoRK1S7xnivK38o890h4Qo/AXIqWUzxDAK4P/6CZ54HbJ4gY+I0XKGzpb8Kr2ck9GuTBeh3L+AStO3LRoQ==;EndpointSuffix=core.windows.net"
 CONTAINER_NAME = 'audio'
@@ -162,7 +162,7 @@ def transcription_file(transcription_id: str):
         return ("No successful transcript created")
 
 @app.get("/transcription/medical") 
-def transcription_file(transcription_id: str="5ad3bb0a-7e16-406e-bd71-a8cc33f6c21f"): 
+def transcription_file(transcription_id: str): 
     """Creates the transcription test file"""
 
     transcription = api.transcriptions_get(transcription_id)
@@ -190,12 +190,6 @@ def transcription_file(transcription_id: str="5ad3bb0a-7e16-406e-bd71-a8cc33f6c2
                 text_analytics_client = TextAnalyticsClient(END_POINT, credential)
 
                 response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
-
-                return response
-
-                # else:
-                #     return("No successful transcript created")
-
-
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+                logger.info("Medical transcription processed")
+                result = response.result()
+                return result
