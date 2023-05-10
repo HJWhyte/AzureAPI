@@ -21,7 +21,6 @@ SERVICE_REGION = "uksouth"
 NAME = "Simple transcription"
 DESCRIPTION = "Simple transcription description"
 LOCALE = "en-US"
-# RECORDINGS_BLOB_URI = "<Your SAS Uri to the recording>"
 RECORDINGS_CONTAINER_URI = "https://tiamataudioin.blob.core.windows.net/audio?sp=rwl&st=2023-05-10T08:19:57Z&se=2023-05-10T16:19:57Z&spr=https&sv=2022-11-02&sr=c&sig=gCFXtNB15VICccUQNQNmJH4%2BZicF%2FWeEzI1qAr2sk7c%3D"
 STORAGE_ACCOUNT = "rg-tiamat"
 CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=tiamataudioin;AccountKey=+jm1JoRK1S7xnivK38o890h4Qo/AXIqWUzxDAK4P/6CZ54HbJ4gY+I0XKGzpb8Kr2ck9GuTBeh3L+AStO3LRoQ==;EndpointSuffix=core.windows.net"
@@ -37,9 +36,11 @@ configuration = swagger_client.Configuration()
 configuration.api_key["Ocp-Apim-Subscription-Key"] = SUBSCRIPTION_KEY
 configuration.host = f"https://{SERVICE_REGION}.api.cognitive.microsoft.com/speechtotext/v3.1"
 logger.info(f"API Key Configuration")
+
 # create the client object and authenticate
 client = swagger_client.ApiClient(configuration)
 logger.info(f"Client Object Creation and Authentication")
+
 # create an instance of the transcription api class
 api = swagger_client.CustomSpeechTranscriptionsApi(api_client=client)
 
@@ -83,28 +84,23 @@ def read_root():
     return {"Hello": "Tiamat have a working API"}
 
 @app.post("/transcribe/start")
-def transcribe():  #sub_key:str, region:str, container_uri:str
+def transcribe():
     """This will transcribe all audio files from a specified container"""
 
     logger.info("Starting transcription client...")
-
     logger.info(f"Transcription API Class instance")
-    properties = swagger_client.TranscriptionProperties()
 
+    properties = swagger_client.TranscriptionProperties()
     transcription_definition = transcribe_from_container(RECORDINGS_CONTAINER_URI, properties)
     logger.info(f"Transcribe from container method run")
 
     created_transcription, status, headers = api.transcriptions_create_with_http_info(transcription=transcription_definition)
 
-    # get the transcription Id from the location URI
     transcription_id = headers["location"].split("/")[-1]
     logger.info(f"Transaction ID from Location URI")
 
-    # Log information about the created transcription. If you should ask for support, please
-    # include this information.
-    logger.info(f"Created new transcription with id '{transcription_id}' in region {SERVICE_REGION}")
-
-    return (f"Created new transcription with id '{transcription_id}' in region {SERVICE_REGION}")
+    logger.info(f"Created new transcription with id: '{transcription_id}' in region {SERVICE_REGION}")
+    return (f"Created new transcription with id: '{transcription_id}'")
 
 @app.get("/transcribe/status")
 def transcription_status(transcription_id: str):
@@ -112,18 +108,19 @@ def transcription_status(transcription_id: str):
 
     transcription = api.transcriptions_get(transcription_id)
     logger.info(f"Transcriptions status: {transcription.status}")
-
     return (f"Transcriptions status: {transcription.status}")
     
 @app.get("/testing/error")
 def transcription_error(transcription_id: str):
-    """Get the transcription job """
-
+    """Check for error message to understand why a transcription job may have failed"""
     transcription = api.transcriptions_get(transcription_id)
-    status = transcription.properties.error.message
-    logger.info(f"Transcriptions status: {status}")
 
-    return (f"Transcriptions status: {status}")
+    if transcription.status == "Failed":
+        error = transcription.properties.error.message
+        logger.info(f"Transcriptions status: {error}")
+        return (f"Transcriptions status: {error}")
+    else:
+        return (f"Transcription job successful. No error message to display.")
 
 @app.get("/transcription/file")
 def transcription_file(transcription_id: str):
@@ -141,6 +138,7 @@ def transcription_file(transcription_id: str):
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
                 logger.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
+
                 f = open("transcription.json", "a")
                 f.write(results.content.decode('utf-8'))
                 f.close
@@ -157,9 +155,8 @@ def transcription_file(transcription_id: str):
                     blob_client.upload_blob(data, overwrite = True)
                 
                 return(f"File transcription.json uploaded to Azure Blob Storage")
-
     else:
-        return ("No successful transcript created")
+        return ("No successful transcript created for this ID")
 
 @app.get("/transcription/medical") 
 def transcription_file(transcription_id: str): 
@@ -205,3 +202,5 @@ def transcription_file(transcription_id: str):
                         print(f"...Normalized Text: {entity.normalized_text}")
 
                 return entities_list
+    else: 
+        return ("No successful transcript created for this ID")
