@@ -184,6 +184,7 @@ def transcription_file(transcription_id: str):
                 my_text = requests.get(results_url)
                 results_as_text = json.loads(my_text.text)
                 blob_text =  results_as_text['combinedRecognizedPhrases'][-1]['lexical']
+                logger.info(blob_text)
 
                 logger.info("Starting Text Analytics for Health")
                 credential = AzureKeyCredential("c86c64f316a2458a96b14908435e744b")
@@ -192,4 +193,26 @@ def transcription_file(transcription_id: str):
                 response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
                 logger.info("Medical transcription processed")
                 result = response.result()
-                return result
+                
+
+                # docs = [doc for doc in result if not doc.is_error]
+
+                # print("Results of Healthcare Entities Analysis:")
+                # for idx, doc in enumerate(docs):
+                #     for entity in doc.entities:
+                #         print(f"Entity: {entity.text}")
+                #         print(f"...Normalized Text: {entity.normalized_text}")
+
+                #     return (f"Entity: {entity.text}, Normalized Text: {entity.normalized_text}")
+
+                entities_list = []
+                docs = [doc for doc in result if not doc.is_error]
+
+                print("Results of Healthcare Entities Analysis:")
+                for idx, doc in enumerate(docs):
+                    for entity in doc.entities:
+                        entities_list.append({'text': entity.text, 'normalized_text': entity.normalized_text})
+                        print(f"Entity: {entity.text}")
+                        print(f"...Normalized Text: {entity.normalized_text}")
+
+                return entities_list
