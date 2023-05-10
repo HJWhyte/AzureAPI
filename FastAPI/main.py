@@ -139,7 +139,9 @@ def transcription_file(transcription_id: str):
                 results = requests.get(results_url)
                 logger.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
 
-                f = open("transcription.json", "a")
+                local_transcript = (f"transcription{transcription_id}.json")
+
+                f = open(local_transcript, "a")
                 f.write(results.content.decode('utf-8'))
                 f.close
 
@@ -147,11 +149,11 @@ def transcription_file(transcription_id: str):
 
                 blob_service_client = BlobServiceClient.from_connection_string(CONNECTION_STRING)
                 container_client = blob_service_client.get_container_client(CONTAINER_NAME)
-                blob_client = container_client.get_blob_client("transcription.json")
+                blob_client = container_client.get_blob_client(local_transcript)
 
                 logger.info("Blob client set up")
 
-                with open("transcription.json", "rb") as data:
+                with open(local_transcript, "rb") as data:
                     blob_client.upload_blob(data, overwrite = True)
                 
                 return(f"File transcription.json uploaded to Azure Blob Storage")
