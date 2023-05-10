@@ -194,17 +194,6 @@ def transcription_file(transcription_id: str):
                 logger.info("Medical transcription processed")
                 result = response.result()
                 
-
-                # docs = [doc for doc in result if not doc.is_error]
-
-                # print("Results of Healthcare Entities Analysis:")
-                # for idx, doc in enumerate(docs):
-                #     for entity in doc.entities:
-                #         print(f"Entity: {entity.text}")
-                #         print(f"...Normalized Text: {entity.normalized_text}")
-
-                #     return (f"Entity: {entity.text}, Normalized Text: {entity.normalized_text}")
-
                 entities_list = []
                 docs = [doc for doc in result if not doc.is_error]
 
