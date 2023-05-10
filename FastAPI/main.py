@@ -100,7 +100,7 @@ def transcribe():
     logger.info(f"Transaction ID from Location URI")
 
     logger.info(f"Created new transcription with id: '{transcription_id}' in region {SERVICE_REGION}")
-    return (f"Created new transcription with id: '{transcription_id}'")
+    return (f"Created new transcription with id: {transcription_id} ")
 
 @app.get("/transcribe/status")
 def transcription_status(transcription_id: str):
@@ -139,7 +139,7 @@ def transcription_file(transcription_id: str):
                 results = requests.get(results_url)
                 logger.info(f"Results for {audiofilename}:\n{results.content.decode('utf-8')}")
 
-                local_transcript = (f"transcription{transcription_id}.json")
+                local_transcript = (f"transcription-{transcription_id}.json")
 
                 f = open(local_transcript, "a")
                 f.write(results.content.decode('utf-8'))
@@ -156,7 +156,7 @@ def transcription_file(transcription_id: str):
                 with open(local_transcript, "rb") as data:
                     blob_client.upload_blob(data, overwrite = True)
                 
-                return(f"File transcription.json uploaded to Azure Blob Storage")
+                return(f"Transcription: {transcription_id} uploaded to Azure Blob Storage")
     else:
         return ("No successful transcript created for this ID")
 
@@ -165,6 +165,9 @@ def transcription_file(transcription_id: str):
     """Creates the transcription test file"""
 
     transcription = api.transcriptions_get(transcription_id)
+
+    local_transcript = (f"transcription-{transcription_id}.json")
+    os.remove(local_transcript)
 
     if transcription.status == "Succeeded":
             pag_files = api.transcriptions_list_files(transcription_id)

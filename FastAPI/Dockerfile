@@ -8,8 +8,10 @@ COPY ./main.py /
 
 COPY ./requirements.txt /
 
+COPY ./python-client /python-client
+
 RUN python3 -m pip install -r requirements.txt
 
-RUN python3 -m pip install ../python-client
+RUN python3 -m pip install /python-client
 
 CMD ["uvicorn", "--host=0.0.0.0", "--port=8001", "main:app"]
