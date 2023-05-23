@@ -6,6 +6,8 @@ RUN apt install -y python3 python3-pip
 
 COPY ./main.py /
 
+COPY ./utils.py /
+
 COPY ./requirements.txt /
 
 COPY ./python-client /python-client

@@ -11,6 +11,8 @@ from azure.core.credentials import AzureKeyCredential
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter, Histogram, Gauge
 from utlis import generate_sas_uri, _paginate, transcribe_from_container
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
 
 # Create FastAPI app 
 app = FastAPI()
@@ -18,6 +20,14 @@ app = FastAPI()
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialise OTEL
+provider = TracerProvider()
+# Set the global default tracer provider
+trace.set_tracer_provider(provider)
+# Creates a tracer from the global tracer provider
+tracer = trace.get_tracer(__name__)
+# Done initialising OTEL
 
 # Get all required Env Variables:
 NAME = os.environ.get("NAME")
@@ -159,13 +169,14 @@ def transcription_file(transcription_id: str):
 @app.get("/transcription/medical") 
 def transcription_file(transcription_id: str): 
     """Creates the transcription test file"""
+    with tracer.start_as_current_span("Get transcription ID"):
+        transcription = api.transcriptions_get(transcription_id)
 
-    transcription = api.transcriptions_get(transcription_id)
-
-    local_transcript = (f"transcription-{transcription_id}.json")
-    os.remove(local_transcript)
+        local_transcript = (f"transcription-{transcription_id}.json")
+        os.remove(local_transcript)
 
     if transcription.status == "Succeeded":
+        with tracer.start_as_current_span("Extract Transcription Pages"):
             pag_files = api.transcriptions_list_files(transcription_id)
             for file_data in _paginate(api, pag_files):
                 if file_data.kind != "Transcription":
@@ -184,18 +195,20 @@ def transcription_file(transcription_id: str):
                 credential = AzureKeyCredential(HEALTH_ANALYTICS_KEY)
                 text_analytics_client = TextAnalyticsClient(END_POINT, credential)
 
-                response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
-                logger.info("Medical transcription processed")
-                result = response.result()
-                
-                entities_list = []
-                docs = [doc for doc in result if not doc.is_error]
+                with tracer.start_as_current_span("text_analytics_processing"):
+                    response = text_analytics_client.begin_analyze_healthcare_entities([blob_text])
+                    logger.info("Medical transcription processed")
+                    result = response.result()
+                    
+                    entities_list = []
+                    docs = [doc for doc in result if not doc.is_error]
 
-                for idx, doc in enumerate(docs):
-                    for entity in doc.entities:
-                        entities_list.append({'text': entity.text, 'normalized_text': entity.normalized_text})
-                        print(f"Entity: {entity.text}")
-                        print(f"...Normalized Text: {entity.normalized_text}")
-                return ("Results of Healthcare Entities Analysis:", entities_list)
-    else: 
-        return ("No successful transcript created for this ID")
+                with tracer.start_as_current_span("Result formatting"):
+                    for idx, doc in enumerate(docs):
+                        for entity in doc.entities:
+                            entities_list.append({'text': entity.text, 'normalized_text': entity.normalized_text})
+                            print(f"Entity: {entity.text}")
+                            print(f"...Normalized Text: {entity.normalized_text}")
+                    return ("Results of Healthcare Entities Analysis:", entities_list)
+            else: 
+                return ("No successful transcript created for this ID")
