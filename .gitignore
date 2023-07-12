@@ -161,3 +161,5 @@ cython_debug/
 
 python-client
 LOCAL_SETUP.cmd
+
+tests\ci

@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from azure.storage.blob import BlobServiceClient
 from azure.ai.textanalytics import TextAnalyticsClient 
 from azure.core.credentials import AzureKeyCredential
-from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter, Histogram, Gauge
+# from prometheus_fastapi_instrumentator import Instrumentator
+# from prometheus_client import Counter, Histogram, Gauge
 from utlis import generate_sas_uri, _paginate, transcribe_from_container
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -73,14 +73,10 @@ api = swagger_client.CustomSpeechTranscriptionsApi(api_client=client)
 #     "audio_files_processed", "Number of processed audio files"
 # )
 
-# processing_time = Histogram(
+# processing_time_sec = Histogram(
 #     "processing_time_seconds",
 #     "Time taken to process an audio file (seconds)",
 #     buckets=[1, 2, 5, 10, 20, 30, 60, 120, 300, float("inf")],
-# )
-
-# concurrent_requests = Gauge(
-#     "concurrent_requests", "Number of concurrent requests"
 # )
 
 @app.get("/")
@@ -98,7 +94,13 @@ def transcribe():
     
 
     sas_uri = generate_sas_uri(STORAGE_ACCOUNT, STORAGE_ACCOUNT_KEY, CONTAINER_NAME)
-    transcription_definition = transcribe_from_container(sas_uri, properties)
+
+    try:
+        transcription_definition = transcribe_from_container(sas_uri, properties)
+    except:
+        logger.error(f"Transcribe from container method failed")
+        return(f"Could not start transcription job")
+    
     logger.info(f"Transcribe from container method run")
 
     created_transcription, status, headers = api.transcriptions_create_with_http_info(transcription_definition)
@@ -124,9 +126,10 @@ def transcription_error(transcription_id: str):
 
     if transcription.status == "Failed":
         error = transcription.properties.error.message
-        logger.info(f"Transcriptions status: {error}")
+        logger.error(f"Transcriptions status: {error}")
         return (f"Transcriptions status: {error}")
     else:
+        logger.info("Transcription successful for given ID")
         return (f"Transcription job successful. No error message to display.")
 
 @app.get("/transcription/file")
@@ -144,6 +147,8 @@ def transcription_file(transcription_id: str):
                 transcript_name = file_data.name
                 results_url = file_data.links.content_url
                 results = requests.get(results_url)
+
+                logger.info("Creating local file")
 
                 local_transcript = (f"transcription-{transcription_id}.json")
 
@@ -164,6 +169,7 @@ def transcription_file(transcription_id: str):
                 
                 return(f"Transcription: {transcription_id} uploaded to Azure Blob Storage")
     else:
+        logger.error("API Method Failed")
         return ("No successful transcript created for this ID")
 
 @app.get("/transcription/medical") 
@@ -210,5 +216,6 @@ def transcription_file(transcription_id: str):
                             print(f"Entity: {entity.text}")
                             print(f"...Normalized Text: {entity.normalized_text}")
                     return ("Results of Healthcare Entities Analysis:", entities_list)
-            else: 
+            else:
+                logger.error("API Method Failed") 
                 return ("No successful transcript created for this ID")
