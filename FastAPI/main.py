@@ -174,7 +174,7 @@ def transcription_file(transcription_id: str):
 
 @app.get("/transcription/medical") 
 def transcription_file(transcription_id: str): 
-    """Creates the transcription test file"""
+    """Creates the output file"""
     with tracer.start_as_current_span("Get transcription ID"):
         transcription = api.transcriptions_get(transcription_id)
 
